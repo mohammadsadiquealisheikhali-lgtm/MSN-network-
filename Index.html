@@ -1,0 +1,566 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MSN Network</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f0fdf4;font-family:Arial,sans-serif;color:#14532d}
+header{background:linear-gradient(135deg,#15803d,#166534);color:white;padding:22px;border-radius:0 0 25px 25px}
+.logo{font-size:30px;font-weight:bold}
+header p{margin:5px 0;color:#dcfce7}
+.card{background:white;padding:18px;border-radius:16px;margin:15px;box-shadow:0 3px 12px #0001}
+.page{padding:10px;display:none}
+.page.active{display:block}
+h2{text-align:center}
+input{width:100%;padding:15px;border:1px solid #bbf7d0;border-radius:10px;font-size:16px;margin:10px 0}
+button{cursor:pointer}
+.action{border:0;border-radius:12px;padding:13px 22px;font-size:16px;margin:8px}
+.green{background:#16a34a;color:white}
+.red{background:#dc2626;color:white}
+#registerBox{text-align:center}
+#appArea{display:none}
+nav{display:flex;justify-content:space-around;background:white;padding:16px 5px;box-shadow:0 3px 10px #0001}
+nav button{border:0;background:none;color:#166534;font-weight:bold;font-size:13px}
+#number{text-align:center;font-size:20px}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:20px 0}
+.key{background:white;border:1px solid #bbf7d0;border-radius:15px;padding:17px;font-size:22px;color:#166534}
+.call{display:block;margin:20px auto;width:75px;height:75px;border-radius:50%;border:0;background:#16a34a;color:white;font-size:28px}
+#myID{overflow-wrap:anywhere;font-weight:bold;color:#15803d}
+.center{text-align:center}
+#incomingBox,#callBox{display:none}
+</style>
+</head>
+<body>
+
+<header>
+ <div class="logo">MSN 💚</div>
+ <p>Connect • Chat • Call</p>
+</header>
+
+<section class="card" id="registerBox">
+ <h2>Welcome to MSN 💚</h2>
+ <p>Create your MSN Account</p>
+ <input id="userName" placeholder="Enter your name" maxlength="40">
+ <button class="action green" id="createBtn" onclick="registerUser()">Create Account</button>
+ <p id="status">Connecting to MSN...</p>
+</section>
+
+<div id="appArea">
+
+ <div class="card">
+  <h3>Welcome, <span id="displayName"></span> 👋</h3>
+  <p>Your MSN ID:</p>
+  <p id="myID"></p>
+  <button class="action green" onclick="copyID()">Copy ID</button>
+ </div>
+
+ <nav>
+  <button onclick="show('dial')">Dial Pad</button>
+  <button onclick="show('contacts')">Contacts</button>
+  <button onclick="show('history')">History</button>
+ </nav>
+
+ <section id="dial" class="page active">
+  <h2>MSN Voice Calling</h2>
+  <input id="number" placeholder="Enter receiver MSN ID">
+  <div class="pad">
+   <button class="key" onclick="add('1')">1</button>
+   <button class="key" onclick="add('2')">2</button>
+   <button class="key" onclick="add('3')">3</button>
+   <button class="key" onclick="add('4')">4</button>
+   <button class="key" onclick="add('5')">5</button>
+   <button class="key" onclick="add('6')">6</button>
+   <button class="key" onclick="add('7')">7</button>
+   <button class="key" onclick="add('8')">8</button>
+   <button class="key" onclick="add('9')">9</button>
+   <button class="key" onclick="add('*')">*</button>
+   <button class="key" onclick="add('0')">0</button>
+   <button class="key" onclick="removeLast()">⌫</button>
+  </div>
+  <button class="call" onclick="makeCall()">☎</button>
+  <p class="center" id="statusCall">Ready to call</p>
+ </section>
+
+ <section id="contacts" class="page">
+  <h2>Contacts</h2>
+  <div class="card">Contacts feature coming soon.</div>
+ </section>
+
+ <section id="history" class="page">
+  <h2>Recent Calls</h2>
+  <div id="records"></div>
+ </section>
+
+ <section class="card" id="incomingBox">
+  <h2>📞 Incoming Call</h2>
+  <h3 class="center" id="incomingName"></h3>
+  <p class="center">Someone is calling you on MSN</p>
+  <div class="center">
+   <button class="action green" onclick="acceptCall()">Accept</button>
+   <button class="action red" onclick="rejectCall()">Reject</button>
+  </div>
+ </section>
+
+ <section class="card" id="callBox">
+  <h2>MSN Voice Call</h2>
+  <p class="center" id="callStatus">Connecting...</p>
+  <div class="center">
+   <button class="action red" onclick="hangup()">End Call</button>
+  </div>
+ </section>
+
+ <audio id="remoteAudio" autoplay playsinline></audio>
+</div>
+
+<script type="module">
+import {initializeApp}
+from "https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js";
+
+import {
+ getAuth,signInAnonymously,onAuthStateChanged
+}
+from "https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js";
+
+import {
+ getDatabase,ref,set,get,push,update,
+ onValue,onChildAdded
+}
+from "https://www.gstatic.com/firebasejs/13.3.0/firebase-database.js";
+
+const firebaseConfig = {
+ apiKey:"AIzaSyBUX6UmBep5nOG_VTTkfJksYwNH2UiSLWU",
+ authDomain:"msn-network.firebaseapp.com",
+ databaseURL:"https://msn-network-default-rtdb.asia-southeast1.firebasedatabase.app",
+ projectId:"msn-network",
+ storageBucket:"msn-network.firebasestorage.app",
+ messagingSenderId:"873548312233",
+ appId:"1:873548312233:web:7aff1b019a70c0708e43b8",
+ measurementId:"G-VVTMMRK80P"
+};
+
+const app=initializeApp(firebaseConfig);
+const auth=getAuth(app);
+const db=getDatabase(app);
+
+let currentUser=null;
+let currentProfile=null;
+let incomingCall=null;
+let activeCallRef=null;
+let activeCallPath="";
+let pc=null;
+let localStream=null;
+let isCaller=false;
+let answerApplied=false;
+let incomingListenerStarted=false;
+let callListeners=[];
+let candidateQueue=[];
+
+let calls=JSON.parse(localStorage.getItem("msnCalls")||"[]");
+
+function openApp(profile){
+ currentProfile=profile;
+ document.getElementById("displayName").innerText=profile.name;
+ document.getElementById("myID").innerText=profile.uid;
+ document.getElementById("registerBox").style.display="none";
+ document.getElementById("appArea").style.display="block";
+ showHistory();
+ listenForCalls();
+}
+
+onAuthStateChanged(auth,async user=>{
+ const status=document.getElementById("status");
+
+ if(!user){
+  signInAnonymously(auth).catch(e=>{
+   status.innerText="Login Error: "+e.message;
+  });
+  return;
+ }
+
+ currentUser=user;
+
+ try{
+  const snap=await get(ref(db,"users/"+user.uid));
+
+  if(snap.exists()){
+   openApp(snap.val());
+  }else{
+   status.innerText="Enter your name to create your MSN account.";
+  }
+ }catch(e){
+  status.innerText="Database Error: "+e.message;
+ }
+});
+
+window.registerUser=async function(){
+ const name=document.getElementById("userName").value.trim();
+ const status=document.getElementById("status");
+ const btn=document.getElementById("createBtn");
+
+ if(!name){alert("Enter your name");return}
+ if(!currentUser){status.innerText="Please wait...";return}
+
+ btn.disabled=true;
+ status.innerText="Creating account...";
+
+ try{
+  const profile={
+   name:name,
+   uid:currentUser.uid,
+   online:true,
+   createdAt:Date.now()
+  };
+
+  await set(ref(db,"users/"+currentUser.uid),profile);
+  openApp(profile);
+  alert("Welcome to MSN Network!");
+ }catch(e){
+  status.innerText="Error: "+e.message;
+ }finally{
+  btn.disabled=false;
+ }
+};
+
+window.copyID=function(){
+ const id=currentUser.uid;
+ if(navigator.clipboard && navigator.clipboard.writeText){
+  navigator.clipboard.writeText(id)
+   .then(()=>alert("MSN ID copied!"))
+   .catch(()=>alert("Your MSN ID: "+id));
+ }else{
+  alert("Your MSN ID: "+id);
+ }
+};
+
+window.add=n=>{
+ document.getElementById("number").value+=n;
+};
+window.removeLast=()=>{
+ const el=document.getElementById("number");
+ el.value=el.value.slice(0,-1);
+};
+
+window.show=id=>{
+ document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+ document.getElementById(id).classList.add("active");
+ if(id==="history")showHistory();
+};
+
+function saveCall(name,status){
+ calls.unshift({name,status,date:new Date().toLocaleString()});
+ localStorage.setItem("msnCalls",JSON.stringify(calls));
+ showHistory();
+}
+
+function showHistory(){
+ document.getElementById("records").innerHTML=calls.map(c=>`
+ <div class="card">
+ 📞 ${escapeText(c.name)}<br>
+ ${escapeText(c.status)}<br>
+ <small>${escapeText(c.date)}</small>
+ </div>`).join("");
+}
+
+function escapeText(value){
+ return String(value).replace(/[&<>"']/g,c=>({
+  "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+ }[c]));
+}
+
+function listenForCalls(){
+ if(incomingListenerStarted)return;
+ incomingListenerStarted=true;
+
+ const callsRef=ref(db,"calls/"+currentUser.uid);
+
+ onChildAdded(callsRef,snapshot=>{
+  const data=snapshot.val();
+
+  if(data && data.status==="ringing" && data.offer && !pc){
+   incomingCall={
+    data:data,
+    path:"calls/"+currentUser.uid+"/"+snapshot.key
+   };
+   document.getElementById("incomingName").innerText=data.callerName||"MSN User";
+   document.getElementById("incomingBox").style.display="block";
+  }
+ });
+}
+
+function createPeerConnection(){
+ pc=new RTCPeerConnection({
+  iceServers:[
+   {urls:"stun:stun.l.google.com:19302"}
+  ]
+ });
+
+ pc.ontrack=event=>{
+  const audio=document.getElementById("remoteAudio");
+  audio.srcObject=event.streams[0];
+  audio.play().catch(()=>{});
+ };
+
+ pc.onconnectionstatechange=()=>{
+  if(!pc)return;
+  const state=pc.connectionState;
+  document.getElementById("callStatus").innerText="Call: "+state;
+
+  if(state==="failed"){
+   document.getElementById("callStatus").innerText=
+   "Connection failed. A TURN server may be needed.";
+  }
+ };
+
+ return pc;
+}
+
+async function getMicrophone(){
+ if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+  throw new Error("Microphone needs HTTPS. Open MSN using a secure website.");
+ }
+
+ localStream=await navigator.mediaDevices.getUserMedia({
+  audio:true,
+  video:false
+ });
+
+ localStream.getTracks().forEach(track=>{
+  pc.addTrack(track,localStream);
+ });
+}
+
+function listenForRemoteCandidates(path){
+ const candidatesRef=ref(db,path);
+
+ const unsubscribe=onChildAdded(candidatesRef,async snap=>{
+  if(!pc)return;
+
+  try{
+   const candidate=new RTCIceCandidate(snap.val());
+
+   if(pc.remoteDescription){
+    await pc.addIceCandidate(candidate);
+   }else{
+    candidateQueue.push(candidate);
+   }
+  }catch(e){
+   console.error("ICE candidate error",e);
+  }
+ });
+
+ callListeners.push(unsubscribe);
+}
+
+async function flushCandidates(){
+ if(!pc || !pc.remoteDescription)return;
+
+ for(const candidate of candidateQueue){
+  try{await pc.addIceCandidate(candidate)}catch(e){
+   console.error(e);
+  }
+ }
+ candidateQueue=[];
+}
+
+function listenToCallStatus(){
+ const unsubscribe=onValue(activeCallRef,async snap=>{
+  if(!snap.exists())return;
+  const data=snap.val();
+
+  if(data.status==="ended" || data.status==="rejected"){
+   document.getElementById("callStatus").innerText=
+   data.status==="rejected"?"Call rejected":"Call ended";
+   cleanupCall();
+  }
+
+  if(isCaller && data.answer && !answerApplied && pc){
+   try{
+    await pc.setRemoteDescription(
+     new RTCSessionDescription(data.answer)
+    );
+    answerApplied=true;
+    await flushCandidates();
+    document.getElementById("callStatus").innerText="Connected / Waiting for audio...";
+   }catch(e){
+    document.getElementById("callStatus").innerText="Answer Error: "+e.message;
+   }
+  }
+ });
+
+ callListeners.push(unsubscribe);
+}
+
+window.makeCall=async function(){
+ const calleeUid=document.getElementById("number").value.trim();
+ const status=document.getElementById("statusCall");
+
+ if(!calleeUid){alert("Enter receiver MSN ID");return}
+ if(calleeUid===currentUser.uid){alert("You cannot call yourself");return}
+ if(pc){alert("A call is already active");return}
+
+ status.innerText="Checking MSN ID...";
+
+ try{
+  const userSnap=await get(ref(db,"users/"+calleeUid));
+
+  if(!userSnap.exists()){
+   status.innerText="MSN ID not found";
+   return;
+  }
+
+  const receiver=userSnap.val();
+
+  activeCallRef=push(ref(db,"calls/"+calleeUid));
+  activeCallPath="calls/"+calleeUid+"/"+activeCallRef.key;
+  isCaller=true;
+  answerApplied=false;
+  candidateQueue=[];
+
+  createPeerConnection();
+  await getMicrophone();
+
+  pc.onicecandidate=event=>{
+   if(event.candidate){
+    push(ref(db,activeCallPath+"/callerCandidates"),
+     event.candidate.toJSON());
+   }
+  };
+
+  const offer=await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  await set(activeCallRef,{
+   callerUid:currentUser.uid,
+   callerName:currentProfile.name,
+   status:"ringing",
+   createdAt:Date.now(),
+   offer:{
+    type:pc.localDescription.type,
+    sdp:pc.localDescription.sdp
+   }
+  });
+
+  listenForRemoteCandidates(activeCallPath+"/calleeCandidates");
+  listenToCallStatus();
+
+  document.getElementById("callBox").style.display="block";
+  document.getElementById("callStatus").innerText=
+   "Calling "+receiver.name+"...";
+  status.innerText="Calling...";
+  saveCall(receiver.name,"Outgoing call");
+
+ }catch(e){
+  status.innerText="Call Error: "+e.message;
+  cleanupCall();
+ }
+};
+
+window.acceptCall=async function(){
+ if(!incomingCall)return;
+
+ try{
+  activeCallPath=incomingCall.path;
+  activeCallRef=ref(db,activeCallPath);
+  isCaller=false;
+  candidateQueue=[];
+
+  createPeerConnection();
+  await getMicrophone();
+
+  pc.onicecandidate=event=>{
+   if(event.candidate){
+    push(ref(db,activeCallPath+"/calleeCandidates"),
+     event.candidate.toJSON());
+   }
+  };
+
+  await pc.setRemoteDescription(
+   new RTCSessionDescription(incomingCall.data.offer)
+  );
+
+  listenForRemoteCandidates(activeCallPath+"/callerCandidates");
+
+  const answer=await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+
+  await update(activeCallRef,{
+   answer:{
+    type:pc.localDescription.type,
+    sdp:pc.localDescription.sdp
+   },
+   status:"accepted"
+  });
+
+  listenToCallStatus();
+
+  document.getElementById("incomingBox").style.display="none";
+  document.getElementById("callBox").style.display="block";
+  document.getElementById("callStatus").innerText="Call connected / Waiting for audio...";
+  saveCall(incomingCall.data.callerName,"Incoming call");
+  incomingCall=null;
+
+ }catch(e){
+  alert("Accept Call Error: "+e.message);
+  cleanupCall();
+ }
+};
+
+window.rejectCall=async function(){
+ if(!incomingCall)return;
+
+ try{
+  await update(ref(db,incomingCall.path),{status:"rejected"});
+ }catch(e){
+  alert("Reject Error: "+e.message);
+ }
+
+ document.getElementById("incomingBox").style.display="none";
+ incomingCall=null;
+};
+
+window.hangup=async function(){
+ if(activeCallRef){
+  try{
+   await update(activeCallRef,{status:"ended"});
+  }catch(e){
+   console.error(e);
+  }
+ }
+
+ cleanupCall();
+};
+
+function cleanupCall(){
+ callListeners.forEach(fn=>{
+  try{fn()}catch(e){}
+ });
+ callListeners=[];
+
+ if(pc){
+  pc.close();
+  pc=null;
+ }
+
+ if(localStream){
+  localStream.getTracks().forEach(track=>track.stop());
+  localStream=null;
+ }
+
+ document.getElementById("remoteAudio").srcObject=null;
+ document.getElementById("callBox").style.display="none";
+ document.getElementById("incomingBox").style.display="none";
+ document.getElementById("statusCall").innerText="Ready to call";
+
+ activeCallRef=null;
+ activeCallPath="";
+ isCaller=false;
+ answerApplied=false;
+ candidateQueue=[];
+}
+
+</script>
+</body>
+</html>
